@@ -8,6 +8,7 @@ const manualHintText = document.getElementById("manualHint");
 const saveBtn = document.getElementById("saveBtn");
 const testNotificationBtn = document.getElementById("testNotificationBtn");
 const pollNowBtn = document.getElementById("pollNowBtn");
+const closePopupBtn = document.getElementById("closePopupBtn");
 const testResultText = document.getElementById("testResult");
 const statusText = document.getElementById("status");
 const effectiveLocationText = document.getElementById("effectiveLocation");
@@ -146,7 +147,6 @@ manualLocationInput.addEventListener("input", () => {
     }
   }, 300);
 });
-
 saveBtn.addEventListener("click", async () => {
   const manualLocation = manualLocationInput.value.trim();
   if (!manualLocation) {
@@ -215,6 +215,12 @@ pollNowBtn.addEventListener("click", async () => {
     setTestResult("Communication error with background service.", true);
   }
 });
+
+if (closePopupBtn) {
+  closePopupBtn.addEventListener("click", () => {
+    window.close();
+  });
+}
 
 loadState();
 checkNotificationPermission();

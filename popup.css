@@ -13,8 +13,15 @@ body {
   padding: 12px;
 }
 
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
 h1 {
-  margin: 0 0 10px;
+  margin: 0;
   font-size: 18px;
 }
 
@@ -57,8 +64,29 @@ button:hover {
   background: #115e59;
 }
 
-.card button + button {
-  margin-inline-start: 8px;
+.close-btn {
+  background: transparent;
+  color: #4b5563;
+  padding: 0;
+  border-radius: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  background: transparent;
+  color: #111827;
+}
+
+.test-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.test-actions button {
+  width: 100%;
 }
 
 .save {
@@ -88,3 +116,6 @@ button:hover {
   color: #18181b;
   font-size: 12px;
 }
+
+
+

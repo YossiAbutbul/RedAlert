@@ -8,7 +8,10 @@
 </head>
 <body>
   <main class="container">
-    <h1>Red Alert Notifications</h1>
+    <div class="topbar">
+      <h1>Red Alert Notifications</h1>
+      <button id="closePopupBtn" class="close-btn" type="button" aria-label="Close popup">✕</button>
+    </div>
 
     <section class="card" id="manualSection">
       <h2>Manual Location</h2>
@@ -21,8 +24,10 @@
 
     <section class="card">
       <h2>Tests</h2>
-      <button id="testNotificationBtn" type="button">Send test notification</button>
-      <button id="pollNowBtn" type="button">Check now against server</button>
+      <div class="test-actions">
+        <button id="testNotificationBtn" type="button">Send test notification</button>
+        <button id="pollNowBtn" type="button">Check now against server</button>
+      </div>
       <p id="testResult" class="muted">No test run yet.</p>
     </section>
 
@@ -33,3 +38,4 @@
   <script src="popup.js"></script>
 </body>
 </html>
+
