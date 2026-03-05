@@ -1,27 +1,55 @@
 ﻿# RedAlert Chrome Extension
 
-תוסף כרום שמתריע על "צבע אדום" לפי מיקום שנבחר באחת מהדרכים:
+A Chrome extension that sends **Red Alert** notifications for a **manually selected location**.
 
-1. הזנה ידנית של יישוב (כולל autocomplete עם הצעות).
-2. שימוש במיקום הנוכחי (GPS) והמרה לשם יישוב.
+The extension is optimized to be efficient and responsive:
+- Adaptive polling (fast during active events, slower when quiet)
+- Request deduplication and notification cooldown
+- Conditional fetch support (`If-None-Match` / `If-Modified-Since`) when available
+- Overlap protection (no concurrent poll spam)
 
-## התקנה
+## Features
 
-1. פתח Chrome ועבור ל-`chrome://extensions`.
-2. הפעל `Developer mode`.
-3. לחץ `Load unpacked` ובחר את התיקייה:
+- Manual location input
+- Autocomplete suggestions for Israeli locations (via Nominatim)
+- Test notification button
+- "Check now against server" button
+- Background alert monitoring with anti-spam logic
+
+## Data Sources
+
+- Alerts feed: `https://www.oref.org.il/warningMessages/alert/alerts.json`
+- Geocoding/autocomplete: Nominatim (`nominatim.openstreetmap.org`)
+
+## Installation (Load Unpacked)
+
+1. Open Chrome and go to `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked**
+4. Select this folder:
    `C:\Users\abyos\Documents\GitHub\RedAlert`
-4. פתח את התוסף, בחר אופן מיקום, ושמור.
 
-## איך לבדוק שזה עובד
+## Usage
 
-1. לחץ בתוסף על `שלח התראת בדיקה`.
-2. ודא שמופיעה התראת מערכת של Chrome.
-3. לחץ `בדוק עכשיו מול השרת` כדי לבצע בדיקה מיידית מול שרת ההתרעות.
-4. אם יש כרגע התרעה שמתאימה למיקום שלך, תופיע גם התראה אמיתית.
+1. Open the extension popup
+2. Enter your location manually (you can use suggestions)
+3. Click **Save**
+4. Use **Send test notification** to verify notification delivery
+5. Use **Check now against server** for an immediate check
 
-## הערות
+## Notes
 
-- בדיקת התרעות אוטומטית מתבצעת פעם בדקה ברקע.
-- מקורות: אתר פיקוד העורף (`oref.org.il`) ו-Nominatim (לתרגום מיקום/הצעות).
-- אם לא מתקבלות התרעות, טען מחדש את התוסף וודא שהמיקום נשמר נכון.
+- Chrome extension notifications are controlled mainly by Chrome + OS notification settings.
+- If notifications are blocked, enable notifications for Chrome in your system settings.
+- The extension is currently **manual-location only** (GPS and Google Maps modes were removed).
+
+## Development
+
+Main files:
+- `manifest.json`
+- `popup.html`
+- `popup.css`
+- `popup.js`
+- `background.js`
+
+To apply local changes after editing, reload the extension in `chrome://extensions`.
