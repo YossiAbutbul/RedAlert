@@ -38,17 +38,60 @@ h2 {
   margin-bottom: 10px;
 }
 
-.row {
-  display: block;
-  margin-bottom: 6px;
+.location-field {
+  position: relative;
 }
 
 input[type="text"] {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 14px;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+}
+
+.suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.14);
+  padding: 6px;
+  display: none;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.suggestions.open {
+  display: block;
+}
+
+.suggestion-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: #111827;
   border-radius: 8px;
-  padding: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.suggestion-item:hover,
+.suggestion-item.active {
+  background: #ecfeff;
+  color: #0f766e;
 }
 
 button {
@@ -116,6 +159,3 @@ button:hover {
   color: #18181b;
   font-size: 12px;
 }
-
-
-

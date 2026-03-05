@@ -15,8 +15,10 @@
 
     <section class="card" id="manualSection">
       <h2>Manual Location</h2>
-      <input id="manualLocation" type="text" list="locationSuggestions" placeholder="e.g. Kiryat Ata" autocomplete="off" />
-      <datalist id="locationSuggestions"></datalist>
+      <div class="location-field">
+        <input id="manualLocation" type="text" placeholder="e.g. Tel Aviv Yafo" autocomplete="off" aria-autocomplete="list" aria-expanded="false" />
+        <div id="locationSuggestions" class="suggestions" role="listbox" aria-label="City suggestions"></div>
+      </div>
       <p id="manualHint" class="muted">Type at least 2 letters for suggestions.</p>
     </section>
 
@@ -38,4 +40,3 @@
   <script src="popup.js"></script>
 </body>
 </html>
-
