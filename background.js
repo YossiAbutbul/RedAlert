@@ -1,6 +1,25 @@
 ﻿const ALERT_URL = "https://www.oref.org.il/warningMessages/alert/alerts.json";
-const ALARM_NAME = "red-alert-poll";
-const POLL_MINUTES = 1;
+const ALARM_NAME = "red-alert-wake";
+
+const POLL = {
+  fastMs: 5000,
+  normalMs: 15000,
+  slowMs: 30000,
+  activeWindowMs: 2 * 60 * 1000,
+  fetchTimeoutMs: 7000,
+  notifyCooldownMs: 90 * 1000
+};
+
+const runtimeState = {
+  isPolling: false,
+  timerId: null,
+  activeUntil: 0,
+  etag: "",
+  lastModified: "",
+  lastFeedSignature: "",
+  consecutiveNoChange: 0,
+  lastResult: "init"
+};
 
 function normalize(text) {
   return (text || "")
@@ -13,12 +32,14 @@ function normalize(text) {
 async function getConfig() {
   const state = await chrome.storage.sync.get({
     manualLocation: "",
-    lastAlertSignature: ""
+    lastAlertSignature: "",
+    lastNotificationAt: 0
   });
 
   return {
     location: state.manualLocation || "",
-    lastAlertSignature: state.lastAlertSignature || ""
+    lastAlertSignature: state.lastAlertSignature || "",
+    lastNotificationAt: Number(state.lastNotificationAt || 0)
   };
 }
 
@@ -44,21 +65,51 @@ function parseAlertPayload(rawText) {
   }
 }
 
+function buildFeedSignature(alertData) {
+  const items = Array.isArray(alertData?.data) ? [...alertData.data].sort() : [];
+  return `${alertData?.id || ""}|${alertData?.alertDate || ""}|${items.join(",")}`;
+}
+
 async function fetchAlerts() {
-  const response = await fetch(ALERT_URL, {
-    headers: {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), POLL.fetchTimeoutMs);
+
+  try {
+    const headers = {
       Accept: "application/json, text/plain, */*",
       "X-Requested-With": "XMLHttpRequest"
-    },
-    cache: "no-store"
-  });
+    };
 
-  if (!response.ok) {
-    throw new Error(`Alert fetch failed: ${response.status}`);
+    if (runtimeState.etag) {
+      headers["If-None-Match"] = runtimeState.etag;
+    }
+    if (runtimeState.lastModified) {
+      headers["If-Modified-Since"] = runtimeState.lastModified;
+    }
+
+    const response = await fetch(ALERT_URL, {
+      headers,
+      cache: "no-store",
+      signal: controller.signal
+    });
+
+    if (response.status === 304) {
+      return { notModified: true };
+    }
+
+    if (!response.ok) {
+      throw new Error(`Alert fetch failed: ${response.status}`);
+    }
+
+    runtimeState.etag = response.headers.get("etag") || runtimeState.etag;
+    runtimeState.lastModified = response.headers.get("last-modified") || runtimeState.lastModified;
+
+    const payloadText = await response.text();
+    const data = parseAlertPayload(payloadText);
+    return { notModified: false, data };
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const payloadText = await response.text();
-  return parseAlertPayload(payloadText);
 }
 
 function findLocationHit(alertData, selectedLocation) {
@@ -98,45 +149,129 @@ async function showNotification(alertData, location, isTest = false) {
   });
 }
 
+function decideNextIntervalMs() {
+  const now = Date.now();
+
+  if (now < runtimeState.activeUntil) {
+    return POLL.fastMs;
+  }
+
+  if (runtimeState.lastResult === "error") {
+    return POLL.normalMs;
+  }
+
+  if (runtimeState.consecutiveNoChange >= 4) {
+    return POLL.slowMs;
+  }
+
+  return POLL.normalMs;
+}
+
+function scheduleNextPoll() {
+  if (runtimeState.timerId) {
+    clearTimeout(runtimeState.timerId);
+    runtimeState.timerId = null;
+  }
+
+  const delay = decideNextIntervalMs();
+  runtimeState.timerId = setTimeout(() => {
+    pollAlerts({ source: "timer" }).catch((err) => {
+      console.warn("Red Alert timer poll failed", err);
+    });
+  }, delay);
+}
+
 async function pollAlerts(options = {}) {
   const forceNotify = Boolean(options.forceNotify);
 
-  const { location, lastAlertSignature } = await getConfig();
-  if (!location) {
-    return { result: "missing_location" };
+  if (runtimeState.isPolling && !forceNotify) {
+    return { result: "busy" };
   }
 
-  const alertData = await fetchAlerts();
-  const hit = findLocationHit(alertData, location);
-  if (!hit) {
-    return { result: "not_matched", location };
-  }
+  runtimeState.isPolling = true;
+  try {
+    const { location, lastAlertSignature, lastNotificationAt } = await getConfig();
+    if (!location) {
+      runtimeState.lastResult = "missing_location";
+      runtimeState.consecutiveNoChange += 1;
+      return { result: "missing_location" };
+    }
 
-  const signature = `${alertData?.id || ""}|${alertData?.alertDate || ""}|${location}`;
-  if (!forceNotify && signature && signature === lastAlertSignature) {
-    return { result: "already_notified", location };
-  }
+    const fetchResult = await fetchAlerts();
+    if (fetchResult.notModified) {
+      runtimeState.lastResult = "not_modified";
+      runtimeState.consecutiveNoChange += 1;
+      return { result: "not_modified", location };
+    }
 
-  await showNotification(alertData, location, forceNotify);
-  await chrome.storage.sync.set({ lastAlertSignature: signature });
-  return { result: "matched", location };
+    const alertData = fetchResult.data;
+    const feedSignature = buildFeedSignature(alertData);
+
+    if (feedSignature && feedSignature === runtimeState.lastFeedSignature) {
+      runtimeState.lastResult = "unchanged_feed";
+      runtimeState.consecutiveNoChange += 1;
+      const hit = findLocationHit(alertData, location);
+      return { result: hit ? "already_notified" : "not_matched", location };
+    }
+
+    runtimeState.lastFeedSignature = feedSignature;
+    runtimeState.consecutiveNoChange = 0;
+
+    const hit = findLocationHit(alertData, location);
+    if (!hit) {
+      runtimeState.lastResult = "not_matched";
+      return { result: "not_matched", location };
+    }
+
+    const signature = `${alertData?.id || ""}|${alertData?.alertDate || ""}|${location}`;
+    const now = Date.now();
+    const stillInCooldown = now - lastNotificationAt < POLL.notifyCooldownMs;
+
+    if (!forceNotify && signature && signature === lastAlertSignature && stillInCooldown) {
+      runtimeState.lastResult = "already_notified";
+      runtimeState.activeUntil = now + POLL.activeWindowMs;
+      return { result: "already_notified", location };
+    }
+
+    await showNotification(alertData, location, forceNotify);
+    await chrome.storage.sync.set({
+      lastAlertSignature: signature,
+      lastNotificationAt: now
+    });
+
+    runtimeState.activeUntil = now + POLL.activeWindowMs;
+    runtimeState.lastResult = "matched";
+    return { result: "matched", location };
+  } catch (err) {
+    runtimeState.lastResult = "error";
+    runtimeState.consecutiveNoChange += 1;
+    throw err;
+  } finally {
+    runtimeState.isPolling = false;
+    scheduleNextPoll();
+  }
+}
+
+async function ensureWakeAlarm() {
+  const alarm = await chrome.alarms.get(ALARM_NAME);
+  if (!alarm) {
+    chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
+  }
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.alarms.clear(ALARM_NAME);
-  chrome.alarms.create(ALARM_NAME, { periodInMinutes: POLL_MINUTES });
+  await ensureWakeAlarm();
   try {
-    await pollAlerts();
+    await pollAlerts({ source: "install" });
   } catch (err) {
     console.warn("Red Alert first poll failed", err);
   }
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  const alarm = await chrome.alarms.get(ALARM_NAME);
-  if (!alarm) {
-    chrome.alarms.create(ALARM_NAME, { periodInMinutes: POLL_MINUTES });
-  }
+  await ensureWakeAlarm();
+  scheduleNextPoll();
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
@@ -145,9 +280,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 
   try {
-    await pollAlerts();
+    await pollAlerts({ source: "alarm" });
   } catch (err) {
-    console.warn("Red Alert polling failed", err);
+    console.warn("Red Alert wake poll failed", err);
   }
 });
 
@@ -167,11 +302,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "POLL_NOW") {
-    pollAlerts({ forceNotify: true })
+    pollAlerts({ forceNotify: true, source: "manual" })
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((err) => sendResponse({ ok: false, error: err.message || "Server check failed." }));
     return true;
   }
 
   return false;
+});
+
+ensureWakeAlarm().catch((err) => {
+  console.warn("Failed to initialize wake alarm", err);
 });
