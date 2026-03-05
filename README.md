@@ -1,4 +1,4 @@
-# RedAlert
+﻿# RedAlert
 
 A clean and simple Chrome extension for getting **Red Alert** updates for the location you care about.
 
@@ -16,4 +16,3 @@ A clean and simple Chrome extension for getting **Red Alert** updates for the lo
 3. Click **Load unpacked**
 4. Select this project folder
 5. Open the extension, set your location, and save
-
