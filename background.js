@@ -26,7 +26,16 @@ function normalize(text) {
     .toLowerCase()
     .replace(/[\u0591-\u05C7]/g, "")
     .replace(/["'`.,]/g, "")
+    .replace(/[-–—_/\\]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
+}
+
+function tokenize(text) {
+  return normalize(text)
+    .split(" ")
+    .map((t) => t.trim())
+    .filter(Boolean);
 }
 
 async function getConfig() {
@@ -119,9 +128,28 @@ function findLocationHit(alertData, selectedLocation) {
     return false;
   }
 
+  const stopWords = new Set(["העיר", "מרכז", "דרום", "צפון", "מזרח", "מערב"]);
+  const selectedTokens = tokenize(selectedNorm).filter((t) => t.length > 1 && !stopWords.has(t));
+
   return items.some((item) => {
     const itemNorm = normalize(item);
-    return itemNorm.includes(selectedNorm) || selectedNorm.includes(itemNorm);
+
+    if (itemNorm.includes(selectedNorm) || selectedNorm.includes(itemNorm)) {
+      return true;
+    }
+
+    const itemTokens = new Set(tokenize(itemNorm));
+    let overlap = 0;
+
+    for (const token of selectedTokens) {
+      if (itemTokens.has(token) || itemNorm.includes(token)) {
+        overlap += 1;
+      }
+    }
+
+    // For multi-word locations (e.g. "תל אביב יפו"), require at least 2 matching tokens.
+    const needed = selectedTokens.length >= 2 ? 2 : 1;
+    return overlap >= needed;
   });
 }
 
@@ -314,3 +342,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 ensureWakeAlarm().catch((err) => {
   console.warn("Failed to initialize wake alarm", err);
 });
+
+
