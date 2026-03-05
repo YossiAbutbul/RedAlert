@@ -1,0 +1,220 @@
+﻿const storageKeys = {
+  manualLocation: "manualLocation"
+};
+
+const manualLocationInput = document.getElementById("manualLocation");
+const locationSuggestions = document.getElementById("locationSuggestions");
+const manualHintText = document.getElementById("manualHint");
+const saveBtn = document.getElementById("saveBtn");
+const testNotificationBtn = document.getElementById("testNotificationBtn");
+const pollNowBtn = document.getElementById("pollNowBtn");
+const testResultText = document.getElementById("testResult");
+const statusText = document.getElementById("status");
+const effectiveLocationText = document.getElementById("effectiveLocation");
+
+let manualAutocompleteTimer = null;
+let manualAutocompleteAbort = null;
+
+function setStatus(message, isError = false) {
+  statusText.textContent = message;
+  statusText.style.color = isError ? "#b91c1c" : "#166534";
+}
+
+function setTestResult(message, isError = false) {
+  testResultText.textContent = message;
+  testResultText.style.color = isError ? "#b91c1c" : "#166534";
+}
+
+async function checkNotificationPermission() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "NOTIFICATION_PERMISSION" });
+    const level = response && response.level;
+    if (level !== "granted") {
+      setTestResult("Chrome notifications are blocked by browser/OS settings.", true);
+      return false;
+    }
+    return true;
+  } catch {
+    setTestResult("Could not check notification permission.", true);
+    return false;
+  }
+}
+
+function extractNameFromNominatimItem(item) {
+  const a = item.address || {};
+  return (
+    a.city ||
+    a.town ||
+    a.village ||
+    a.suburb ||
+    a.municipality ||
+    a.state_district ||
+    item.name ||
+    item.display_name ||
+    ""
+  );
+}
+
+function renderLocationSuggestions(options) {
+  locationSuggestions.innerHTML = "";
+  options.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    locationSuggestions.appendChild(option);
+  });
+}
+
+async function fetchLocationSuggestions(query) {
+  if (manualAutocompleteAbort) {
+    manualAutocompleteAbort.abort();
+  }
+
+  manualAutocompleteAbort = new AbortController();
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=il&addressdetails=1&limit=7&accept-language=he&q=${encodeURIComponent(query)}`,
+    {
+      headers: {
+        Accept: "application/json"
+      },
+      signal: manualAutocompleteAbort.signal
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to load location suggestions.");
+  }
+
+  const rows = await response.json();
+  const unique = new Set();
+
+  rows.forEach((item) => {
+    const name = extractNameFromNominatimItem(item).trim();
+    if (name) {
+      unique.add(name);
+    }
+  });
+
+  return [...unique].slice(0, 7);
+}
+
+async function loadState() {
+  const state = await chrome.storage.sync.get({
+    [storageKeys.manualLocation]: ""
+  });
+
+  manualLocationInput.value = state[storageKeys.manualLocation] || "";
+  effectiveLocationText.textContent = state[storageKeys.manualLocation]
+    ? `Active location: ${state[storageKeys.manualLocation]}`
+    : "No active location defined.";
+}
+
+manualLocationInput.addEventListener("input", () => {
+  const query = manualLocationInput.value.trim();
+
+  if (manualAutocompleteTimer) {
+    clearTimeout(manualAutocompleteTimer);
+  }
+
+  if (query.length < 2) {
+    renderLocationSuggestions([]);
+    manualHintText.textContent = "Type at least 2 letters for suggestions.";
+    manualHintText.style.color = "#52525b";
+    return;
+  }
+
+  manualHintText.textContent = "Searching suggestions...";
+  manualHintText.style.color = "#52525b";
+
+  manualAutocompleteTimer = setTimeout(async () => {
+    try {
+      const suggestions = await fetchLocationSuggestions(query);
+      renderLocationSuggestions(suggestions);
+
+      if (suggestions.length === 0) {
+        manualHintText.textContent = "No suggestions found. You can still save free text.";
+      } else {
+        manualHintText.textContent = `Found ${suggestions.length} suggestions. Pick one from the list.`;
+      }
+      manualHintText.style.color = "#52525b";
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        return;
+      }
+
+      manualHintText.textContent = "Could not load suggestions. You can continue with manual text.";
+      manualHintText.style.color = "#b91c1c";
+    }
+  }, 300);
+});
+
+saveBtn.addEventListener("click", async () => {
+  const manualLocation = manualLocationInput.value.trim();
+  if (!manualLocation) {
+    setStatus("Please enter a location before saving.", true);
+    return;
+  }
+
+  await chrome.storage.sync.set({ [storageKeys.manualLocation]: manualLocation });
+  effectiveLocationText.textContent = `Active location: ${manualLocation}`;
+  setStatus("Settings saved.");
+});
+
+testNotificationBtn.addEventListener("click", async () => {
+  const permissionOk = await checkNotificationPermission();
+  if (!permissionOk) {
+    return;
+  }
+
+  setTestResult("Sending test notification...");
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "TEST_NOTIFICATION" });
+    if (!response || !response.ok) {
+      setTestResult((response && response.error) || "Test notification failed.", true);
+      return;
+    }
+
+    setTestResult("Test notification sent.");
+  } catch {
+    setTestResult("Communication error with background service.", true);
+  }
+});
+
+pollNowBtn.addEventListener("click", async () => {
+  setTestResult("Checking alert server now...");
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "POLL_NOW" });
+    if (!response || !response.ok) {
+      setTestResult((response && response.error) || "Server check failed.", true);
+      return;
+    }
+
+    if (response.result === "matched") {
+      setTestResult(`Match found for "${response.location}" and notification sent.`);
+      return;
+    }
+
+    if (response.result === "not_matched") {
+      setTestResult(`No current match for "${response.location}".`);
+      return;
+    }
+
+    if (response.result === "missing_location") {
+      setTestResult("No active location set. Save location first.", true);
+      return;
+    }
+
+    if (response.result === "already_notified") {
+      setTestResult(`Already notified for "${response.location}" in current event.`);
+      return;
+    }
+
+    setTestResult("Check completed.");
+  } catch {
+    setTestResult("Communication error with background service.", true);
+  }
+});
+
+loadState();
+checkNotificationPermission();

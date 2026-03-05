@@ -1,0 +1,25 @@
+﻿{
+  "manifest_version": 3,
+  "name": "Red Alert by Location",
+  "description": "Red Alert notifications by manually selected location.",
+  "version": "1.0.0",
+  "icons": {
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_title": "Red Alert",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "alarms",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://www.oref.org.il/*",
+    "https://nominatim.openstreetmap.org/*"
+  ]
+}

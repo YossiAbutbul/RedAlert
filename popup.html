@@ -1,0 +1,35 @@
+﻿<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Red Alert</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Red Alert Notifications</h1>
+
+    <section class="card" id="manualSection">
+      <h2>Manual Location</h2>
+      <input id="manualLocation" type="text" list="locationSuggestions" placeholder="e.g. Kiryat Ata" autocomplete="off" />
+      <datalist id="locationSuggestions"></datalist>
+      <p id="manualHint" class="muted">Type at least 2 letters for suggestions.</p>
+    </section>
+
+    <button id="saveBtn" class="save" type="button">Save</button>
+
+    <section class="card">
+      <h2>Tests</h2>
+      <button id="testNotificationBtn" type="button">Send test notification</button>
+      <button id="pollNowBtn" type="button">Check now against server</button>
+      <p id="testResult" class="muted">No test run yet.</p>
+    </section>
+
+    <p id="status" class="status"></p>
+    <p id="effectiveLocation" class="effective"></p>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
