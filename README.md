@@ -2,10 +2,6 @@
 
 A clean and simple Chrome extension for getting **Red Alert** updates for the location you care about.
 
-## Why I built this
-
-I wanted a lightweight tool that makes it easier to stay aware of alerts without extra noise or complicated setup.
-
 ## What it does
 
 - Lets you choose a location manually
